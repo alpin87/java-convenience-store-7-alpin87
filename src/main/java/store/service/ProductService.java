@@ -29,4 +29,9 @@ public class ProductService {
                 .findFirst()
                 .orElseThrow(() -> new IllegalArgumentException(ErrorCode.NON_EXISTENT_PRODUCT.getMessage()));
     }
+
+    public void decreaseStock(String productName, int quantity) {
+        Product product = findProduct(productName);
+        product.decreaseStock(quantity);
+    }
 }
