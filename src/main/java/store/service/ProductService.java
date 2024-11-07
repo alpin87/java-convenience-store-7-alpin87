@@ -8,8 +8,10 @@ import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
 
-
 public class ProductService {
+    private static final double MEMBERSHIP_DISCOUNT_RATE = 0.3;
+    private static final int MAX_MEMBERSHIP_DISCOUNT = 8000;
+
     private final List<Product> products;
     private final Map<String, Promotion> promotions;
 
@@ -69,5 +71,21 @@ public class ProductService {
 
         Promotion promotion = promotions.get(product.getPromotion());
         return quantity >= promotion.getBuyQuantity();
+    }
+
+    public int calculatePromotionDiscount(String productName, int quantity) {
+        Product product = findProduct(productName);
+        if (!hasValidPromotion(productName)) {
+            return 0;
+        }
+
+        int freeQuantity = calculateFreeQuantity(productName, quantity);
+        return freeQuantity * product.getPrice();
+    }
+
+    public int calculateMembershipDiscount(int totalPrice, int promotionDiscount) {
+        int priceAfterPromotion = totalPrice - promotionDiscount;
+        int membershipDiscount = (int) (priceAfterPromotion * MEMBERSHIP_DISCOUNT_RATE);
+        return Math.min(membershipDiscount, MAX_MEMBERSHIP_DISCOUNT);
     }
 }
