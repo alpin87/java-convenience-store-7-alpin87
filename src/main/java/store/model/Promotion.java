@@ -1,17 +1,18 @@
 package store.model;
 
-import java.time.LocalDate;
+import camp.nextstep.edu.missionutils.DateTimes;
 import store.exception.ErrorCode;
+import java.time.LocalDateTime;
 
 public class Promotion {
     private final String name;
     private final int buyQuantity;
     private final int getFreeQuantity;
-    private final LocalDate startDate;
-    private final LocalDate endDate;
+    private final LocalDateTime startDate;
+    private final LocalDateTime endDate;
 
     public Promotion(String name, int buyQuantity, int getFreeQuantity,
-                     LocalDate startDate, LocalDate endDate) {
+                     LocalDateTime startDate, LocalDateTime endDate) {
         validateName(name);
         validateQuantities(buyQuantity, getFreeQuantity);
         validateDates(startDate, endDate);
@@ -35,8 +36,13 @@ public class Promotion {
         return getFreeQuantity;
     }
 
-    public boolean isValid(LocalDate date) {
-        return !date.isBefore(startDate) && !date.isAfter(endDate);
+    public boolean isValid() {
+        LocalDateTime now = DateTimes.now();
+        return validateCurrentDate(now);
+    }
+
+    private boolean validateCurrentDate(LocalDateTime currentDate) {
+        return !currentDate.isBefore(startDate) && !currentDate.isAfter(endDate);
     }
 
     private void validateName(String name) {
@@ -51,18 +57,18 @@ public class Promotion {
         }
     }
 
-    private void validateDates(LocalDate startDate, LocalDate endDate) {
+    private void validateDates(LocalDateTime startDate, LocalDateTime endDate) {
         validateDateNotNull(startDate, endDate);
         validateDateRange(startDate, endDate);
     }
 
-    private void validateDateNotNull(LocalDate startDate, LocalDate endDate) {
+    private void validateDateNotNull(LocalDateTime startDate, LocalDateTime endDate) {
         if (startDate == null || endDate == null) {
             throw new IllegalArgumentException(ErrorCode.PROMOTION_DATE_INVALID.getMessage());
         }
     }
 
-    private void validateDateRange(LocalDate startDate, LocalDate endDate) {
+    private void validateDateRange(LocalDateTime startDate, LocalDateTime endDate) {
         if (startDate.isAfter(endDate)) {
             throw new IllegalArgumentException(ErrorCode.START_DATE_SHOULD_BE_BEFORE_END_DATE.getMessage());
         }
