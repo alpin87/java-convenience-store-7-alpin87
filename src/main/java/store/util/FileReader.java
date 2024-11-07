@@ -19,7 +19,7 @@ public class FileReader {
             List<String> lines = Files.readAllLines(Paths.get(PRODUCTS_PATH));
             return parseProducts(lines);
         } catch (IOException e) {
-            throw new IllegalStateException(ErrorCode.NOT_FOUND_PRODUCT.getMessage());
+            throw new IllegalStateException(ErrorCode.FAILED_TO_READ_PRODUCT.getMessage());
         }
     }
 
@@ -28,7 +28,7 @@ public class FileReader {
             List<String> lines = Files.readAllLines(Paths.get(PROMOTIONS_PATH));
             return parsePromotions(lines);
         } catch (IOException e) {
-            throw new IllegalStateException(ErrorCode.NOT_FOUND_PROMOTION.getMessage());
+            throw new IllegalStateException(ErrorCode.FAILED_TO_READ_PRODUCT.getMessage());
         }
     }
 
