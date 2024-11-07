@@ -14,17 +14,19 @@ public class FileReader {
     private static final String PRODUCTS_PATH = "src/main/resources/products.md";
     private static final String PROMOTIONS_PATH = "src/main/resources/promotions.md";
 
-    public List<String> readProducts() {
+    public List<Product> getProducts() {
         try {
-            return Files.readAllLines(Paths.get(PRODUCTS_PATH));
+            List<String> lines = Files.readAllLines(Paths.get(PRODUCTS_PATH));
+            return parseProducts(lines);
         } catch (IOException e) {
             throw new IllegalStateException(ErrorCode.NOT_FOUND_PRODUCT.getMessage());
         }
     }
 
-    public List<String> readPromotions() {
+    public List<Promotion> getPromotions() {
         try {
-            return Files.readAllLines(Paths.get(PROMOTIONS_PATH));
+            List<String> lines = Files.readAllLines(Paths.get(PROMOTIONS_PATH));
+            return parsePromotions(lines);
         } catch (IOException e) {
             throw new IllegalStateException(ErrorCode.NOT_FOUND_PROMOTION.getMessage());
         }
