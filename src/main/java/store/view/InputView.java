@@ -1,6 +1,7 @@
 package store.view;
 
 import camp.nextstep.edu.missionutils.Console;
+import store.exception.ErrorCode;
 
 public class InputView {
 
@@ -10,5 +11,18 @@ public class InputView {
     public String FirstOrder() {
         System.out.println(INPUT_PRODUCT_MESSAGE);
         return Console.readLine();
+    }
+
+    public boolean MembershipOption() {
+        System.out.println(INPUT_MEMBERSHIP_MESSAGE);
+        String input = Console.readLine();
+        validateYesOrNo(input);
+        return input.equalsIgnoreCase("Y");
+    }
+
+    private void validateYesOrNo(String input) {
+        if (!input.equalsIgnoreCase("Y") && !input.equalsIgnoreCase("N")) {
+            throw new IllegalArgumentException(ErrorCode.MEMBERSHIP_YES_OR_NO_CHECK.getMessage());
+        }
     }
 }
