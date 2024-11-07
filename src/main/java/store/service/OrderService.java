@@ -22,4 +22,21 @@ public class OrderService {
         productService.decreaseStock(productName, quantity);
         cart.addOrder(new Order(product, quantity));
     }
+
+    public int calculatePromotionDiscount() {
+        int totalDiscount = 0;
+        for (Order order : cart.getOrders()) {
+            String productName = order.getProduct().getName();
+            totalDiscount += productService.calculatePromotionDiscount(
+                    productName,
+                    order.getQuantity()
+            );
+        }
+        return totalDiscount;
+    }
+
+    public boolean canApplyAdditionalPromotion(String productName, int currentQuantity) {
+        return productService.hasValidPromotion(productName) &&
+                !productService.isPromotionAvailable(productName, currentQuantity);
+    }
 }
