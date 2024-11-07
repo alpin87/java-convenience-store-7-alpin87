@@ -34,4 +34,9 @@ public class ProductService {
         Product product = findProduct(productName);
         product.decreaseStock(quantity);
     }
+
+    public boolean checkStock(String productName, int quantity) {
+        Product product = findProduct(productName);
+        return product.getStock() >= quantity;
+    }
 }
