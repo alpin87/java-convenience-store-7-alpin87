@@ -2,6 +2,7 @@ package store.model;
 
 import java.util.ArrayList;
 import java.util.List;
+import store.exception.ErrorCode;
 
 public class Cart {
     private final List<Order> orders;
@@ -11,6 +12,7 @@ public class Cart {
     }
 
     public void addOrder(Order order) {
+        validateOrder(order);
         orders.add(order);
     }
 
@@ -22,5 +24,11 @@ public class Cart {
         return orders.stream()
                 .mapToInt(Order::calculateTotalPrice)
                 .sum();
+    }
+
+    private void validateOrder(Order order) {
+        if (order == null) {
+            throw new IllegalArgumentException(ErrorCode.ORDER_DOES_NOT_EXIST.getMessage());
+        }
     }
 }
