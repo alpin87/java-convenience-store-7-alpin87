@@ -39,4 +39,35 @@ public class ProductService {
         Product product = findProduct(productName);
         return product.getStock() >= quantity;
     }
+
+    public Promotion getPromotion(String productName) {
+        Product product = findProduct(productName);
+        return product.hasPromotion() ? promotions.get(product.getPromotion()) : null;
+    }
+
+    public boolean hasValidPromotion(String productName) {
+        Product product = findProduct(productName);
+        return product.hasPromotion() &&
+                promotions.containsKey(product.getPromotion());
+    }
+
+    public int calculateFreeQuantity(String productName, int purchaseQuantity) {
+        Product product = findProduct(productName);
+        if (!hasValidPromotion(productName)) {
+            return 0;
+        }
+
+        Promotion promotion = promotions.get(product.getPromotion());
+        return (purchaseQuantity / promotion.getBuyQuantity()) * promotion.getFreeQuantity();
+    }
+
+    public boolean isPromotionAvailable(String productName, int quantity) {
+        Product product = findProduct(productName);
+        if (!hasValidPromotion(productName)) {
+            return false;
+        }
+
+        Promotion promotion = promotions.get(product.getPromotion());
+        return quantity >= promotion.getBuyQuantity();
+    }
 }
