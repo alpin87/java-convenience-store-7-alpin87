@@ -3,10 +3,12 @@ package store.util;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Paths;
+import java.time.LocalDate;
 import java.util.ArrayList;
 import java.util.List;
 import store.exception.ErrorCode;
 import store.model.Product;
+import store.model.Promotion;
 
 public class FileReader {
     private static final String PRODUCTS_PATH = "src/main/resources/products.md";
@@ -33,12 +35,27 @@ public class FileReader {
         for (int i = 1; i < lines.size(); i++) {
             String[] parts = lines.get(i).split(",");
             products.add(new Product(
-                    parts[0],                    // name
-                    Integer.parseInt(parts[1]),  // price
-                    Integer.parseInt(parts[2]),  // quantity
-                    parts[3]                     // promotion
+                    parts[0],
+                    Integer.parseInt(parts[1]),
+                    Integer.parseInt(parts[2]),
+                    parts[3]
             ));
         }
         return products;
+    }
+
+    private List<Promotion> parsePromotions(List<String> lines) {
+        List<Promotion> promotions = new ArrayList<>();
+        for (int i = 1; i < lines.size(); i++) {
+            String[] parts = lines.get(i).split(",");
+            promotions.add(new Promotion(
+                    parts[0],
+                    Integer.parseInt(parts[1]),
+                    Integer.parseInt(parts[2]),
+                    LocalDate.parse(parts[3]),
+                    LocalDate.parse(parts[4])
+            ));
+        }
+        return promotions;
     }
 }
