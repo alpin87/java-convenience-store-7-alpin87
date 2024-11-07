@@ -39,4 +39,27 @@ public class OrderService {
         return productService.hasValidPromotion(productName) &&
                 !productService.isPromotionAvailable(productName, currentQuantity);
     }
+
+    public int calculateTotalPrice() {
+        return cart.calculateTotalPrice();
+    }
+
+    public int calculateFinalPrice(boolean isMembershipApplied) {
+        int totalPrice = calculateTotalPrice();
+        int promotionDiscount = calculatePromotionDiscount();
+        int membershipDiscount = 0;
+
+        if (isMembershipApplied) {
+            membershipDiscount = productService.calculateMembershipDiscount(
+                    totalPrice,
+                    promotionDiscount
+            );
+        }
+
+        return totalPrice - promotionDiscount - membershipDiscount;
+    }
+
+    public void clearCart() {
+        this.cart = new Cart();
+    }
 }
