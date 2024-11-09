@@ -1,6 +1,7 @@
 package store.model;
 
 import camp.nextstep.edu.missionutils.DateTimes;
+import java.util.Optional;
 import store.exception.ErrorCode;
 import store.validator.Validator;
 import java.time.LocalDateTime;
@@ -35,7 +36,9 @@ public class Promotion {
     }
 
     public boolean isValid() {
-        return isDateInPromotionPeriod(DateTimes.now());
+        return Optional.of(DateTimes.now())
+                .map(this::isDateInPromotionPeriod)
+                .orElse(false);
     }
 
     private boolean isDateInPromotionPeriod(LocalDateTime currentDate) {
