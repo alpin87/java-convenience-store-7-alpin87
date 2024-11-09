@@ -1,6 +1,8 @@
 package store.model;
 
 import store.exception.ErrorCode;
+import java.util.Arrays;
+import java.util.Optional;
 
 public enum PromotionType {
     BUY_2_GET_1("탄산2+1", 2, 1),
@@ -30,12 +32,10 @@ public enum PromotionType {
     }
 
     public static PromotionType fromName(String name) {
-        for (PromotionType type : values()) {
-            if (type.name.equals(name)) {
-                return type;
-            }
-        }
-        throw new IllegalArgumentException(ErrorCode.INVALID_PROMOTION_NAME.getMessage());
+        return Arrays.stream(values())
+                .filter(type -> type.name.equals(name))
+                .findFirst()
+                .orElseThrow(() -> new IllegalArgumentException(ErrorCode.INVALID_PROMOTION_NAME.getMessage()));
     }
 
     public boolean shouldAskForPromotion() {

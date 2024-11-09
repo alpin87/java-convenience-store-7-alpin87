@@ -1,6 +1,8 @@
 package store.model;
 
 import store.exception.ErrorCode;
+import java.util.Arrays;
+import java.util.Optional;
 
 public enum YesNo {
     YES("Y"),
@@ -18,17 +20,19 @@ public enum YesNo {
     }
 
     private static void validateInput(String input) {
-        if (input == null || input.trim().isEmpty()) {
-            throw new IllegalArgumentException(ErrorCode.MEMBERSHIP_YES_OR_NO_CHECK.getMessage());
-        }
+        Optional.ofNullable(input)
+                .filter(str -> !str.trim().isEmpty())
+                .orElseThrow(() -> new IllegalArgumentException(ErrorCode.MEMBERSHIP_YES_OR_NO_CHECK.getMessage()));
     }
 
     private static YesNo findAnswer(String input) {
-        for (YesNo answer : values()) {
-            if (answer.value.equals(input)) {
-                return answer;
-            }
-        }
-        throw new IllegalArgumentException(ErrorCode.MEMBERSHIP_YES_OR_NO_CHECK.getMessage());
+        return Arrays.stream(values())
+                .filter(answer -> answer.value.equals(input))
+                .findFirst()
+                .orElseThrow(() -> new IllegalArgumentException(ErrorCode.MEMBERSHIP_YES_OR_NO_CHECK.getMessage()));
+    }
+
+    public boolean isYes() {
+        return this == YES;
     }
 }
