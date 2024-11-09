@@ -28,19 +28,30 @@ public class ProductService {
     }
 
     public Product findProduct(String name) {
-        List<Product> availableProducts = products.stream()
+        List<Product> availableProducts = getAvailableProducts(name);
+        return findPromotionalProduct(availableProducts)
+                .orElseGet(() -> findNormalProductFromList(availableProducts));
+    }
+
+    private List<Product> getAvailableProducts(String name) {
+        return products.stream()
                 .filter(product -> product.getName().equals(name))
                 .filter(product -> product.getTotalStock() > 0)
                 .toList();
+    }
 
+    private Optional<Product> findPromotionalProduct(List<Product> availableProducts) {
         return availableProducts.stream()
                 .filter(Product::hasPromotion)
                 .filter(p -> promotions.get(p.getPromotion()).isValid())
+                .findFirst();
+    }
+
+    private Product findNormalProductFromList(List<Product> availableProducts) {
+        return availableProducts.stream()
+                .filter(p -> !p.hasPromotion())
                 .findFirst()
-                .orElseGet(() -> availableProducts.stream()
-                        .filter(p -> !p.hasPromotion())
-                        .findFirst()
-                        .orElseThrow(() -> new IllegalArgumentException(ErrorCode.NON_EXISTENT_PRODUCT.getMessage())));
+                .orElseThrow(() -> new IllegalArgumentException(ErrorCode.NON_EXISTENT_PRODUCT.getMessage()));
     }
 
     public Product findOriginalProduct(String name) {
@@ -51,78 +62,105 @@ public class ProductService {
     }
 
     public boolean checkStock(String productName, int quantity) {
-        Product product = findProduct(productName);
-        return product.getTotalStock() >= quantity;
-    }
-
-    public boolean isEligibleForPromotion(String productName, int quantity) {
-        Product product = findProduct(productName);
-        return Optional.of(product)
-                .filter(Product::hasPromotion)
-                .filter(p -> promotions.get(p.getPromotion()).isValid())
-                .map(p -> isQuantityEligibleForPromotion(p, quantity))
+        return Optional.of(findProduct(productName))
+                .map(product -> product.getTotalStock() >= quantity)
                 .orElse(false);
     }
 
-    private boolean isQuantityEligibleForPromotion(Product product, int quantity) {
-        Promotion promotion = promotions.get(product.getPromotion());
-        return quantity % promotion.getBuyQuantity() == 0 &&
-                product.getPromotionalStock() >= quantity;
+    public OrderProcessingResult processOrder(String productName, int requestedQuantity) {
+        Product product = findProduct(productName);
+        validateStock(product, requestedQuantity);
+        return calculateOrderQuantities(product, requestedQuantity);
     }
 
-    public int getPromotionalFreeQuantity(String productName) {
-        Product product = findProduct(productName);
+    private void validateStock(Product product, int requestedQuantity) {
+        Optional.of(product)
+                .filter(p -> p.canFulfillOrder(requestedQuantity))
+                .orElseThrow(() -> new IllegalArgumentException(ErrorCode.INVENTORY_QUANTITY_EXCEEDED.getMessage()));
+    }
+
+    private OrderProcessingResult calculateOrderQuantities(Product product, int requestedQuantity) {
         return Optional.of(product)
                 .filter(Product::hasPromotion)
-                .map(p -> promotions.get(p.getPromotion()))
+                .map(p -> calculatePromotionalOrder(p, requestedQuantity))
+                .orElseGet(() -> new OrderProcessingResult(0, requestedQuantity, 0));
+    }
+
+    private OrderProcessingResult calculatePromotionalOrder(Product product, int requestedQuantity) {
+        return Optional.ofNullable(promotions.get(product.getPromotion()))
                 .filter(Promotion::isValid)
-                .map(Promotion::getFreeQuantity)
-                .orElse(0);
+                .map(promotion -> processValidPromotion(product, requestedQuantity, promotion))
+                .orElseGet(() -> new OrderProcessingResult(0, requestedQuantity, 0));
     }
 
-    public int getNonPromotionalQuantity(String productName, int quantity) {
-        Product product = findProduct(productName);
-        return Optional.of(product)
-                .filter(Product::hasPromotion)
-                .filter(p -> promotions.get(p.getPromotion()).isValid())
-                .map(p -> calculateNonPromotionalQuantity(p, quantity))
-                .orElse(0);
+    private OrderProcessingResult processValidPromotion(Product product, int requestedQuantity, Promotion promotion) {
+        PromotionSetsInfo setsInfo = calculatePromotionSets(product, requestedQuantity, promotion);
+        return createPromotionResult(product, setsInfo);
     }
 
-    private int calculateNonPromotionalQuantity(Product product, int quantity) {
-        Promotion promotion = promotions.get(product.getPromotion());
-        int availablePromotionSets = product.getPromotionalStock() / promotion.getBuyQuantity();
-        int maxPromotionQuantity = availablePromotionSets * promotion.getBuyQuantity();
-        return quantity - maxPromotionQuantity;
+    private PromotionSetsInfo calculatePromotionSets(Product product, int requestedQuantity, Promotion promotion) {
+        int promotionSetSize = promotion.getBuyQuantity() + promotion.getFreeQuantity();
+        int availablePromotionSets = product.getPromotionalStock() / promotionSetSize;
+        int requestedSets = requestedQuantity / promotionSetSize;
+        int usedSets = Math.min(availablePromotionSets, requestedSets);
+
+        return new PromotionSetsInfo(
+                usedSets * promotion.getBuyQuantity(),
+                usedSets * promotion.getFreeQuantity(),
+                requestedQuantity - (usedSets * promotionSetSize)
+        );
     }
 
-    public boolean needsNormalStockConfirmation(String productName, int quantity) {
-        Product product = findProduct(productName);
-        int nonPromotionalQuantity = getNonPromotionalQuantity(productName, quantity);
-        return Optional.of(product)
-                .filter(Product::hasPromotion)
-                .filter(p -> promotions.get(p.getPromotion()).isValid())
-                .filter(p -> nonPromotionalQuantity > 0)
-                .filter(p -> p.getNormalStock() >= nonPromotionalQuantity)
-                .isPresent();
+    private OrderProcessingResult createPromotionResult(Product product, PromotionSetsInfo setsInfo) {
+        return Optional.of(setsInfo)
+                .filter(info -> info.remainingQuantity() > 0)
+                .map(info -> handleRemainingQuantity(product, info))
+                .orElseGet(() -> new OrderProcessingResult(
+                        setsInfo.promotionQuantity(),
+                        0,
+                        setsInfo.freeQuantity()
+                ));
     }
 
-    public void decreaseStock(String productName, int quantity) {
-        Product product = findProduct(productName);
-        OrderProcessingResult result = processOrder(productName, quantity);
-        applyOrder(productName, result);
+    private OrderProcessingResult handleRemainingQuantity(Product product, PromotionSetsInfo setsInfo) {
+        return Optional.ofNullable(findNormalProduct(product.getName()))
+                .filter(normalProduct -> normalProduct.getNormalStock() >= setsInfo.remainingQuantity())
+                .map(normalProduct -> new OrderProcessingResult(
+                        setsInfo.promotionQuantity(),
+                        setsInfo.remainingQuantity(),
+                        setsInfo.freeQuantity()
+                ))
+                .orElseGet(() -> new OrderProcessingResult(
+                        setsInfo.promotionQuantity(),
+                        0,
+                        setsInfo.freeQuantity()
+                ));
+    }
+
+    public void applyOrder(String productName, OrderProcessingResult result) {
+        applyPromotionOrder(productName, result);
+        applyNormalOrder(productName, result);
+    }
+
+    private void applyPromotionOrder(String productName, OrderProcessingResult result) {
+        Optional.ofNullable(findPromotionProduct(productName))
+                .ifPresent(product -> product.decreasePromotionStock(result.promotionQuantity() + result.freeItems()));
+    }
+
+    private void applyNormalOrder(String productName, OrderProcessingResult result) {
+        Optional.ofNullable(findNormalProduct(productName))
+                .ifPresent(product -> product.decreaseNormalStock(result.normalQuantity()));
     }
 
     public int calculatePromotionDiscount(String productName, int quantity) {
-        Product product = findProduct(productName);
-        return Optional.of(product)
+        return Optional.of(findProduct(productName))
                 .filter(Product::hasPromotion)
                 .filter(p -> promotions.get(p.getPromotion()).isValid())
-                .map(p -> calculateDiscountAmount(p, quantity))
+                .map(p -> calculateProductDiscount(p, quantity))
                 .orElse(0);
     }
 
-    private int calculateDiscountAmount(Product product, int quantity) {
+    private int calculateProductDiscount(Product product, int quantity) {
         Promotion promotion = promotions.get(product.getPromotion());
         int availablePromotionSets = Math.min(
                 product.getPromotionalStock() / promotion.getBuyQuantity(),
@@ -132,22 +170,10 @@ public class ProductService {
     }
 
     public int calculateMembershipDiscount(int totalPrice, int promotionDiscount) {
-        int discountableAmount = calculateDiscountableAmount(totalPrice, promotionDiscount);
-        return calculateMembershipDiscountByAmount(discountableAmount);
-    }
-
-    private int calculateDiscountableAmount(int totalPrice, int promotionDiscount) {
-        int remainingPrice = totalPrice - promotionDiscount;
-        return validateDiscountableAmount(remainingPrice);
-    }
-
-    private int validateDiscountableAmount(int amount) {
-        return Math.max(amount, 0);
-    }
-
-    private int calculateMembershipDiscountByAmount(int amount) {
-        int rawDiscount = calculateRawDiscount(amount);
-        return applyDiscountLimit(rawDiscount);
+        return Optional.of(totalPrice - promotionDiscount)
+                .map(this::calculateRawDiscount)
+                .map(this::applyDiscountLimit)
+                .orElse(0);
     }
 
     private int calculateRawDiscount(int amount) {
@@ -156,113 +182,6 @@ public class ProductService {
 
     private int applyDiscountLimit(int discount) {
         return Math.min(discount, MAX_MEMBERSHIP_DISCOUNT);
-    }
-
-    public OrderProcessingResult processOrder(String productName, int requestedQuantity) {
-        Product product = findProduct(productName);
-
-        OrderProcessingResult result = Optional.of(product)
-                .filter(p -> p.canFulfillOrder(requestedQuantity))
-                .map(p -> calculateOrderQuantities(p, requestedQuantity))
-                .orElseThrow(() -> new IllegalArgumentException(ErrorCode.INVENTORY_QUANTITY_EXCEEDED.getMessage()));
-
-        transferPromotionStockToNormal(product, result);
-
-        return result;
-    }
-
-    private void transferPromotionStockToNormal(Product product, OrderProcessingResult result) {
-        int remainingQuantity = result.normalQuantity();
-
-        if (remainingQuantity > 0) {
-            int transferQuantity = Math.min(product.getPromotionalStock(), remainingQuantity);
-            product.transferPromotionStockToNormal(transferQuantity);
-        }
-    }
-
-    private OrderProcessingResult calculateOrderQuantities(Product product, int requestedQuantity) {
-        OrderProcessingResult promotionResult = Optional.of(product)
-                .filter(Product::hasPromotion)
-                .map(Product::getPromotion)
-                .map(promotions::get)
-                .filter(Promotion::isValid)
-                .map(promotion -> calculatePromotionOrder(product, requestedQuantity, promotion))
-                .orElse(new OrderProcessingResult(0, requestedQuantity, 0));
-
-        int remainingQuantity = requestedQuantity - promotionResult.getTotalQuantity();
-
-        if (remainingQuantity > 0) {
-            int normalQuantity = Math.min(remainingQuantity, product.getNormalStock() + product.getPromotionalStock());
-            return new OrderProcessingResult(promotionResult.promotionQuantity(), normalQuantity, promotionResult.freeItems());
-        }
-
-        return promotionResult;
-    }
-
-    private OrderProcessingResult calculatePromotionOrder(Product product, int requestedQuantity, Promotion promotion) {
-        int promotionSetSize = promotion.getBuyQuantity() + promotion.getFreeQuantity();
-        int availablePromotionSets = product.getPromotionalStock() / promotionSetSize;
-        int requestedSets = requestedQuantity / promotionSetSize;
-        int usedPromotionSets = Math.min(availablePromotionSets, requestedSets);
-
-        int promotionPurchaseQuantity = usedPromotionSets * promotion.getBuyQuantity();
-        int promotionFreeQuantity = usedPromotionSets * promotion.getFreeQuantity();
-
-        int remainingQuantity = requestedQuantity - (usedPromotionSets * promotionSetSize);
-
-        return handleRemainingQuantity(product, remainingQuantity, promotionPurchaseQuantity, promotionFreeQuantity);
-    }
-
-    private OrderProcessingResult handleRemainingQuantity(Product product, int remainingQuantity,
-                                                          int promotionQuantity, int freeItems) {
-        return Optional.of(remainingQuantity)
-                .filter(remaining -> remaining > 0)
-                .map(remaining -> {
-                    Optional<Product> normalProduct = products.stream()
-                            .filter(p -> p.getName().equals(product.getName()))
-                            .filter(p -> !p.hasPromotion())
-                            .filter(p -> p.getNormalStock() >= remaining)
-                            .findFirst();
-
-                    return normalProduct
-                            .map(p -> new OrderProcessingResult(promotionQuantity, remaining, freeItems))
-                            .orElseGet(() -> new OrderProcessingResult(promotionQuantity, 0, freeItems));
-                })
-                .orElseGet(() -> new OrderProcessingResult(promotionQuantity, 0, freeItems));
-    }
-
-
-    private PromotionSets calculatePromotionSets(Product product, int requestedQuantity, Promotion promotion) {
-        int possibleSets = requestedQuantity / promotion.getBuyQuantity();
-        int maxSets = product.getPromotionalStock() / promotion.getBuyQuantity();
-        int actualSets = Math.min(possibleSets, maxSets);
-        return new PromotionSets(possibleSets, maxSets, actualSets);
-    }
-
-    private record PromotionSets(int possible, int max, int actual) {}
-
-    private OrderProcessingResult processPromotionalOrder(Product product, int requestedQuantity, Promotion promotion) {
-        int promotionSets = product.getPromotionalStock() / promotion.getBuyQuantity();
-        int maxPromotionQuantity = promotionSets * promotion.getBuyQuantity();
-        int promotionQuantity = Math.min(maxPromotionQuantity,
-                (requestedQuantity / promotion.getBuyQuantity()) * promotion.getBuyQuantity());
-        int remainingQuantity = requestedQuantity - promotionQuantity;
-        int freeItems = (promotionQuantity / promotion.getBuyQuantity()) * promotion.getFreeQuantity();
-
-        return new OrderProcessingResult(promotionQuantity, remainingQuantity, freeItems);
-    }
-
-    public void applyOrder(String productName, OrderProcessingResult result) {
-        Product promotionProduct = findPromotionProduct(productName);
-        Product normalProduct = findNormalProduct(productName);
-
-        if (promotionProduct != null) {
-            promotionProduct.decreasePromotionStock(result.promotionQuantity() + result.freeItems());
-        }
-
-        if (normalProduct != null) {
-            normalProduct.decreaseNormalStock(result.normalQuantity());
-        }
     }
 
     private Product findPromotionProduct(String name) {
@@ -281,12 +200,13 @@ public class ProductService {
                 .orElse(null);
     }
 
-    private record StockDecreaseResult(int promotionDecrease, int normalDecrease) {}
-
-    private StockDecreaseResult calculateStockDecrease(Product product, int totalQuantity) {
-        int promotionDecrease = Math.min(product.getPromotionalStock(), totalQuantity);
-        int normalDecrease = totalQuantity - promotionDecrease;
-        return new StockDecreaseResult(promotionDecrease, normalDecrease);
+    public boolean isMDRecommendationPromotion(String productName) {
+        return Optional.ofNullable(findProduct(productName))
+                .filter(Product::hasPromotion)
+                .map(product -> promotions.get(product.getPromotion()))
+                .map(Promotion::getType)
+                .filter(type -> type == PromotionType.MD_RECOMMENDATION)
+                .isPresent();
     }
 
     public record OrderProcessingResult(int promotionQuantity, int normalQuantity, int freeItems) {
@@ -295,12 +215,14 @@ public class ProductService {
         }
     }
 
-    public boolean isMDRecommendationPromotion(String productName) {
-        return Optional.ofNullable(findProduct(productName))
+    private record PromotionSetsInfo(int promotionQuantity, int freeQuantity, int remainingQuantity) {}
+
+    public int getPromotionalFreeQuantity(String productName) {
+        return Optional.of(findProduct(productName))
                 .filter(Product::hasPromotion)
-                .map(product -> promotions.get(product.getPromotion()))
-                .map(Promotion::getType)
-                .filter(type -> type == PromotionType.MD_RECOMMENDATION)
-                .isPresent();
+                .map(p -> promotions.get(p.getPromotion()))
+                .filter(Promotion::isValid)
+                .map(Promotion::getFreeQuantity)
+                .orElse(0);
     }
 }
