@@ -2,70 +2,54 @@ package store.model;
 
 import camp.nextstep.edu.missionutils.DateTimes;
 import store.exception.ErrorCode;
+import store.validator.Validator;
 import java.time.LocalDateTime;
 
 public class Promotion {
-    private final String name;
-    private final int buyQuantity;
-    private final int getFreeQuantity;
+    private final PromotionType type;
     private final LocalDateTime startDate;
     private final LocalDateTime endDate;
 
-    public Promotion(String name, int buyQuantity, int getFreeQuantity,
+    public Promotion(String name, int buyQuantity, int freeQuantity,
                      LocalDateTime startDate, LocalDateTime endDate) {
-        validateName(name);
-        validateQuantities(buyQuantity, getFreeQuantity);
-        validateDates(startDate, endDate);
-
-        this.name = name;
-        this.buyQuantity = buyQuantity;
-        this.getFreeQuantity = getFreeQuantity;
+        validatePromotionDates(startDate, endDate);
+        this.type = PromotionType.fromName(name);
         this.startDate = startDate;
         this.endDate = endDate;
     }
 
+    public PromotionType getType() {
+        return type;
+    }
+
     public String getName() {
-        return name;
+        return type.getName();
     }
 
     public int getBuyQuantity() {
-        return buyQuantity;
+        return type.getBuyQuantity();
     }
 
     public int getFreeQuantity() {
-        return getFreeQuantity;
+        return type.getFreeQuantity();
     }
 
     public boolean isValid() {
-        LocalDateTime now = DateTimes.now();
-        return validateCurrentDate(now);
+        return isDateInPromotionPeriod(DateTimes.now());
     }
 
-    private boolean validateCurrentDate(LocalDateTime currentDate) {
+    private boolean isDateInPromotionPeriod(LocalDateTime currentDate) {
         return !currentDate.isBefore(startDate) && !currentDate.isAfter(endDate);
     }
 
-    private void validateName(String name) {
-        if (name == null || name.isBlank()) {
-            throw new IllegalArgumentException(ErrorCode.INVALID_PROMOTION_NAME.getMessage());
-        }
-    }
-
-    private void validateQuantities(int buyQuantity, int getFreeQuantity) {
-        if (buyQuantity <= 0 || getFreeQuantity <= 0) {
-            throw new IllegalArgumentException(ErrorCode.INVALID_PROMOTION_QUANTITY.getMessage());
-        }
-    }
-
-    private void validateDates(LocalDateTime startDate, LocalDateTime endDate) {
-        validateDateNotNull(startDate, endDate);
+    private void validatePromotionDates(LocalDateTime startDate, LocalDateTime endDate) {
+        validateDatesNotNull(startDate, endDate);
         validateDateRange(startDate, endDate);
     }
 
-    private void validateDateNotNull(LocalDateTime startDate, LocalDateTime endDate) {
-        if (startDate == null || endDate == null) {
-            throw new IllegalArgumentException(ErrorCode.PROMOTION_DATE_INVALID.getMessage());
-        }
+    private void validateDatesNotNull(LocalDateTime startDate, LocalDateTime endDate) {
+        Validator.validateNotNull(startDate, ErrorCode.PROMOTION_DATE_INVALID);
+        Validator.validateNotNull(endDate, ErrorCode.PROMOTION_DATE_INVALID);
     }
 
     private void validateDateRange(LocalDateTime startDate, LocalDateTime endDate) {
