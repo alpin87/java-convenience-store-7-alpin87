@@ -202,6 +202,7 @@ public class StoreController {
 
     private void prepareNextOrder() {
         orderService.clearCart();
+        System.out.println();
         displayInitialScreen();
     }
 
