@@ -52,6 +52,15 @@ public class Cart {
                 .orElse(0);
     }
 
+    public int getTotalQuantity() {
+        return Optional.of(orders)
+                .map(List::stream)
+                .map(stream -> stream
+                        .mapToInt(Order::getQuantity)
+                        .sum())
+                .orElse(0);
+    }
+
     private void validateOrder(Order order) {
         Optional.ofNullable(order)
                 .orElseThrow(() -> new IllegalArgumentException(ErrorCode.ORDER_DOES_NOT_EXIST.getMessage()));
