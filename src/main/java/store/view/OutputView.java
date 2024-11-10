@@ -3,18 +3,18 @@ package store.view;
 import store.model.Cart;
 import store.model.Order;
 import store.model.Product;
+import java.util.List;
 import java.util.Optional;
-import java.util.function.Consumer;
 
 public class OutputView {
-    private static final String RECEIPT_HEADER = "\n==============W 편의점================";
+    private static final String RECEIPT_HEADER = "==============W 편의점================";
     private static final String RECEIPT_PROMOTION = "=============증\t정===============";
     private static final String RECEIPT_FOOTER = "====================================";
     private static final String OUT_OF_STOCK = "재고 없음";
     private static final String STOCK_SUFFIX = "개";
 
     public void printFirstMessage() {
-        Optional.of("\n안녕하세요. W편의점입니다.\n현재 보유하고 있는 상품입니다.")
+        Optional.of("안녕하세요. W편의점입니다.\n현재 보유하고 있는 상품입니다.\n")
                 .ifPresent(System.out::println);
     }
 
@@ -48,80 +48,79 @@ public class OutputView {
     }
 
     public void printReceipt(Cart cart, int totalPrice, int promotionDiscount, int membershipDiscount) {
-        Optional.of(new ReceiptPrinter(cart, totalPrice, promotionDiscount, membershipDiscount))
-                .ifPresent(ReceiptPrinter::print);
+        ReceiptFormatter formatter = new ReceiptFormatter(cart, totalPrice, promotionDiscount, membershipDiscount);
+        String formattedReceipt = formatter.format();
+        System.out.println(formattedReceipt);
     }
 
-    private class ReceiptPrinter {
+    private class ReceiptFormatter {
         private final Cart cart;
         private final int totalPrice;
         private final int promotionDiscount;
         private final int membershipDiscount;
+        private final StringBuilder builder;
 
-        private ReceiptPrinter(Cart cart, int totalPrice, int promotionDiscount, int membershipDiscount) {
+        private ReceiptFormatter(Cart cart, int totalPrice, int promotionDiscount, int membershipDiscount) {
             this.cart = cart;
             this.totalPrice = totalPrice;
             this.promotionDiscount = promotionDiscount;
             this.membershipDiscount = membershipDiscount;
+            this.builder = new StringBuilder();
         }
 
-        public void print() {
-            printSection(this::printHeader);
-            printSection(this::printOrderDetails);
-            printSection(this::printPromotionalItems);
-            printSection(this::printPriceDetails);
+        public String format() {
+            appendNewLine();
+            appendHeader();
+            appendOrderDetails();
+            appendPromotionalItems();
+            appendPriceDetails();
+            return builder.toString();
         }
 
-        private void printSection(Runnable printer) {
-            Optional.of(printer).ifPresent(Runnable::run);
+        private void appendHeader() {
+            builder.append(RECEIPT_HEADER).append('\n');
+            builder.append("상품명\t\t수량\t금액\n");
         }
 
-        private void printHeader() {
-            System.out.println(RECEIPT_HEADER);
-            System.out.println("상품명\t\t수량\t금액");
+        private void appendOrderDetails() {
+            List<Order> orders = cart.getOrders();
+            for (Order order : orders) {
+                builder.append(String.format("%s\t\t%d\t%,d%n",
+                        order.getProduct().getName(),
+                        order.getQuantity(),
+                        order.calculateTotalPrice()));
+            }
         }
 
-        private void printOrderDetails() {
-            Optional.of(cart)
-                    .map(Cart::getOrders)
-                    .ifPresent(orders -> orders.forEach(this::printOrderLine));
+        private void appendPromotionalItems() {
+            builder.append(RECEIPT_PROMOTION).append('\n');
+            List<Order> promotionalOrders = cart.getPromotionalOrders();
+            for (Order order : promotionalOrders) {
+                builder.append(String.format("%s\t\t%d%n",
+                        order.getProduct().getName(),
+                        1));
+            }
         }
 
-        private void printOrderLine(Order order) {
-            System.out.printf("%s\t\t%d\t%,d%n",
-                    order.getProduct().getName(),
-                    order.getQuantity(),
-                    order.calculateTotalPrice());
+        private void appendPriceDetails() {
+            builder.append(RECEIPT_FOOTER).append('\n');
+            appendPriceDetail("총구매액", "", totalPrice);
+            appendPriceDetail("행사할인", "-", promotionDiscount);
+            appendPriceDetail("멤버십할인", "-", membershipDiscount);
+            appendFinalPrice();
         }
 
-        private void printPromotionalItems() {
-            System.out.println(RECEIPT_PROMOTION);
-            Optional.of(cart)
-                    .map(Cart::getPromotionalOrders)
-                    .ifPresent(orders -> orders.forEach(this::printPromotionLine));
+        private void appendPriceDetail(String label, String prefix, int amount) {
+            builder.append(String.format("%s\t\t\t%s%,d%n", label, prefix, amount));
         }
 
-        private void printPromotionLine(Order order) {
-            System.out.printf("%s\t\t%d%n",
-                    order.getProduct().getName(),
-                    1);
-        }
-
-        private void printPriceDetails() {
-            System.out.println(RECEIPT_FOOTER);
-            printPriceDetail("총구매액", "", totalPrice);
-            printPriceDetail("행사할인", "-", promotionDiscount);
-            printPriceDetail("멤버십할인", "-", membershipDiscount);
-            printFinalPrice();
-        }
-
-        private void printPriceDetail(String label, String prefix, int amount) {
-            System.out.printf("%s\t\t\t%s%,d%n", label, prefix, amount);
-        }
-
-        private void printFinalPrice() {
+        private void appendFinalPrice() {
             int finalPrice = totalPrice - promotionDiscount - membershipDiscount;
-            printPriceDetail("내실돈", "", finalPrice);
+            appendPriceDetail("내실돈", "", finalPrice);
+        }
+
+        private void appendNewLine() {
+            builder.append('\n');
         }
     }
 }
