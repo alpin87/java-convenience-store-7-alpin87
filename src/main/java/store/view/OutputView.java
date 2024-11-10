@@ -1,14 +1,15 @@
 package store.view;
 
+import java.util.List;
 import store.model.Cart;
 import store.model.Order;
 import store.model.Product;
-import java.util.List;
 import java.util.Optional;
+import java.util.function.Consumer;
 
 public class OutputView {
-    private static final String RECEIPT_HEADER = "==============W 편의점================";
-    private static final String RECEIPT_PROMOTION = "=============증\t정===============";
+    private static final String RECEIPT_HEADER = "\n==============W 편의점================";
+    private static final String RECEIPT_PROMOTION = "=============증      정===============";
     private static final String RECEIPT_FOOTER = "====================================";
     private static final String OUT_OF_STOCK = "재고 없음";
     private static final String STOCK_SUFFIX = "개";
@@ -69,7 +70,6 @@ public class OutputView {
         }
 
         public String format() {
-            appendNewLine();
             appendHeader();
             appendOrderDetails();
             appendPromotionalItems();
@@ -79,13 +79,13 @@ public class OutputView {
 
         private void appendHeader() {
             builder.append(RECEIPT_HEADER).append('\n');
-            builder.append("상품명\t\t수량\t금액\n");
+            builder.append("상품명               수량     금액\n");
         }
 
         private void appendOrderDetails() {
             List<Order> orders = cart.getOrders();
             for (Order order : orders) {
-                builder.append(String.format("%s\t\t%d\t%,d%n",
+                builder.append(String.format("%-20s%-9d%,d%n",
                         order.getProduct().getName(),
                         order.getQuantity(),
                         order.calculateTotalPrice()));
@@ -96,7 +96,7 @@ public class OutputView {
             builder.append(RECEIPT_PROMOTION).append('\n');
             List<Order> promotionalOrders = cart.getPromotionalOrders();
             for (Order order : promotionalOrders) {
-                builder.append(String.format("%s\t\t%d%n",
+                builder.append(String.format("%-20s%d%n",
                         order.getProduct().getName(),
                         1));
             }
@@ -104,23 +104,27 @@ public class OutputView {
 
         private void appendPriceDetails() {
             builder.append(RECEIPT_FOOTER).append('\n');
-            appendPriceDetail("총구매액", "", totalPrice);
-            appendPriceDetail("행사할인", "-", promotionDiscount);
-            appendPriceDetail("멤버십할인", "-", membershipDiscount);
+            appendTotalQuantityAndPrice();
+            appendPriceDetail("행사할인", promotionDiscount);
+            appendPriceDetail("멤버십할인", membershipDiscount);
             appendFinalPrice();
         }
 
-        private void appendPriceDetail(String label, String prefix, int amount) {
-            builder.append(String.format("%s\t\t\t%s%,d%n", label, prefix, amount));
+        private void appendTotalQuantityAndPrice() {
+            int totalQuantity = cart.getTotalQuantity();
+            builder.append(String.format("총구매액             %-9d%,d%n",
+                    totalQuantity, totalPrice));
+        }
+
+        private void appendPriceDetail(String label, int amount) {
+            builder.append(String.format("%-20s%9s%,d%n",
+                    label, "", -amount));
         }
 
         private void appendFinalPrice() {
             int finalPrice = totalPrice - promotionDiscount - membershipDiscount;
-            appendPriceDetail("내실돈", "", finalPrice);
-        }
-
-        private void appendNewLine() {
-            builder.append('\n');
+            builder.append(String.format("%-20s%9s%,d%n",
+                    "내실돈", "", finalPrice));
         }
     }
 }
